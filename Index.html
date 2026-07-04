@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Hill Climb Clone - Mod Todo Desbloqueado</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #222;
+            font-family: 'Arial', sans-serif;
+            color: white;
+            user-select: none;
+            overflow: hidden;
+        }
+        #menu, #game-container {
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        #game-container { display: none; }
+        canvas {
+            background: linear-gradient(#70c5ce, #aad7cd);
+            display: block;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+        .btn {
+            background: #ffcc00;
+            color: #000;
+            border: none;
+            padding: 15px 30px;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 10px;
+            margin: 10px;
+            box-shadow: 0 5px #cc9900;
+        }
+        .btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 1px #cc9900;
+        }
+        .upgrade-box {
+            background: rgba(0,0,0,0.6);
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+            margin: 10px;
+            width: 300px;
+        }
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 50px;
+            box-sizing: border-box;
+        }
+        .ctrl-btn {
+            width: 100px;
+            height: 100px;
+            background: rgba(255,255,255,0.2);
+            border: 4px solid white;
+            border-radius: 50%;
+            color: white;
+            font-weight: bold;
+            font-size: 18px;
+        }
+        .ctrl-btn:active { background: rgba(255,255,255,0.5); }
+        #hud {
+            position: absolute;
+            top: 10px;
+            left: 20px;
+            font-size: 20px;
+            font-weight: bold;
+            text-shadow: 2px 2px black;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="menu">
+        <h1>HILL CLIMB CLONE <span style="color:#ffcc00; font-size:14px;">MOD HACK</span></h1>
+        <h2>Monedas: <span id="coin-count" style="color:#ffcc00;">99999999</span></h2>
+        
+        <div style="display:flex; flex-wrap: wrap; justify-content:center;">
+            <div class="upgrade-box">
+                <h3>MOTOR</h3>
+                <p>Nivel: <span id="lvl-motor">1</span>/10</p>
+                <button class="btn" onclick="upgrade('motor')">MAXOUT (0$)</button>
+            </div>
+            <div class="upgrade-box">
+                <h3>SUSPENSIÓN</h3>
+                <p>Nivel: <span id="lvl-suspension">1</span>/10</p>
+                <button class="btn" onclick="upgrade('suspension')">MAXOUT (0$)</button>
+            </div>
+            <div class="upgrade-box">
+                <h3>NEUMÁTICOS</h3>
+                <p>Nivel: <span id="lvl-ruedas">1</span>/10</p>
+                <button class="btn" onclick="upgrade('ruedas')">MAXOUT (0$)</button>
+            </div>
+        </div>
+        
+        <button class="btn" style="background:#4CAF50; color:white; box-shadow:0 5px #2E7D32; margin-top:30px;" onclick="startGame()">¡INICIAR CARRERA!</button>
+    </div>
+
+    <div id="game-container">
+        <div id="hud">
+            Distancia: <span id="hud-dist">0</span>m<br>
+            Gasolina: <span id="hud-fuel">100</span>%<br>
+            <button class="btn" style="padding:5px 10px; font-size:12px;" onclick="backToMenu()">Menú</button>
+        </div>
+        <canvas id="gameCanvas"></canvas>
+        <div id="controls">
+            <button class="ctrl-btn" id="btn-brake">FRENAR / ↺</button>
+            <button class="ctrl-btn" id="btn-gas">GAS / ↻</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+
+        // Ajustar tamaño de pantalla
+        canvas.width = window.innerWidth > 800 ? 800 : window.innerWidth;
+        canvas.height = window.innerHeight > 450 ? 450 : window.innerHeight;
+
+        // Variables del Mod/Hacks
+        let upgrades = { motor: 1, suspension: 1, ruedas: 1 };
+        
+        // Estado del coche y físicas
+        let car = {
+            x: 100, y: 150,
+            vx: 0, vy: 0,
+            angle: 0, vAngle: 0,
+            radius: 15,
+            fuel: 100,
+            alive: true,
+            distance: 0
+        };
+
+        let keys = { gas: false, brake: false };
+
+        // Configuración de controles móviles y teclado
+        document.getElementById("btn-gas").addEventListener("touchstart", () => keys.gas = true);
+        document.getElementById("btn-gas").addEventListener("touchend", () => keys.gas = false);
+        document.getElementById("btn-brake").addEventListener("touchstart", () => keys.brake = true);
+        document.getElementById("btn-brake").addEventListener("touchend", () => keys.brake = false);
+        
+        window.addEventListener("keydown", (e) => {
+            if(e.key === "ArrowRight" || e.key.toLowerCase() === "d") keys.gas = true;
+            if(e.key === "ArrowLeft" || e.key.toLowerCase() === "a") keys.brake = true;
+        });
+        window.addEventListener("keyup", (e) => {
+            if(e.key === "ArrowRight" || e.key.toLowerCase() === "d") keys.gas = false;
+            if(e.key === "ArrowLeft" || e.key.toLowerCase() === "a") keys.brake = false;
+        });
+
+        function upgrade(type) {
+            upgrades[type] = 10; // Forzar nivel máximo directamente
+            document.getElementById(`lvl-${type}`).innerText = "MAX";
+        }
+
+        function startGame() {
+            document.getElementById("menu").style.display = "none";
+            document.getElementById("game-container").style.display = "flex";
+            resetGame();
+            gameLoop();
+        }
+
+        function backToMenu() {
+            document.getElementById("menu").style.display = "flex";
+            document.getElementById("game-container").style.display = "none";
+            car.alive = false;
+        }
+
+        function resetGame() {
+            car.x = 100; car.y = 50; car.vx = 0; car.vy = 0;
+            car.angle = 0; car.vAngle = 0; car.fuel = 100;
+            car.alive = true; car.distance = 0;
+        }
+
+        // Generador de terreno matemático (Colinas infinitas)
+        function getTerrainHeight(x) {
+            // La altura depende de senos y cosenos. Las mejoras de ruedas reducen baches lógicos.
+            return canvas.height - 100 
+                + Math.sin(x * 0.005) * 60 
+                + Math.sin(x * 0.02) * 20 
+                + Math.cos(x * 0.001) * 40;
+        }
+
+        function gameLoop() {
+            if (!car.alive) return;
+
+            updatePhysics();
+            draw();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function updatePhysics() {
+            // Modificadores basados en tus mejoras al Máximo
+            let power = 0.1 + (upgrades.motor * 0.02);
+            let grip = 0.98 + (upgrades.ruedas * 0.001);
+            let stability = 0.003 + (upgrades.suspension * 0.001);
+
+            let groundY = getTerrainHeight(car.x);
+            let isGrounded = car.y >= groundY - car.radius;
+
+            // Consumo de Gasolina
+            if(car.fuel > 0) {
+                car.fuel -= 0.04;
+            } else {
+                car.fuel = 0;
+                keys.gas = false; // Sin gasolina no aceleras
+            }
+
+            if (isGrounded) {
+                car.y = groundY - car.radius;
+                car.vy = 0;
+
+                // Obtener inclinación del terreno local
+                let nextGroundY = getTerrainHeight(car.x + 5);
+                let terrainAngle = Math.atan2(nextGroundY - groundY, 5);
+                
+                // Alineación automática parcial del chasis al suelo
+                car.angle += (terrainAngle - car.angle) * 0.3;
+
+                if (keys.gas) {
+                    car.vx += Math.cos(car.angle) * power;
+                    car.vy += Math.sin(car.angle) * power;
+                }
+                if (keys.brake) {
+                    car.vx -= Math.cos(car.angle) * (power * 0.6);
+                }
+
+                // Fricción básica
+                car.vx *= grip;
+            } else {
+                // Físicas en el Aire (Gravedad y Control de rotación aérea)
+                car.vy += 0.25; // Gravedad
+                
+                if (keys.gas) car.vAngle += stability;
+                if (keys.brake) car.vAngle -= stability;
+                
+                car.vAngle *= 0.9;
+                car.angle += car.vAngle;
+            }
+
+            // Aplicar velocidades
+            car.x += car.vx;
+            car.y += car.vy;
+            car.distance = Math.floor(car.x / 10);
+
+            // Actualizar HUD
+            document.getElementById("hud-dist").innerText = car.distance;
+            document.getElementById("hud-fuel").innerText = Math.floor(car.fuel);
+
+            // Condición de Derrota (Volcarse o sin gasolina parado)
+            let currentTerrainAngle = Math.atan2(getTerrainHeight(car.x+1) - getTerrainHeight(car.x), 1);
+            let diffAngle = Math.abs(car.angle - currentTerrainAngle);
+            
+            if (isGrounded && diffAngle > Math.PI / 1.8) {
+                alert("¡Te has roto el cuello! Fin de la partida.");
+                backToMenu();
+            }
+
+            if(car.fuel <= 0 && Math.abs(car.vx) < 0.1) {
+                alert("¡Te quedaste sin gasolina!");
+                backToMenu();
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            ctx.save();
+            // Cámara que sigue al coche horizontalmente
+            ctx.translate(-car.x + 150, 0);
+
+            // Dibujar Terreno Terrestre
+            ctx.beginPath();
+            ctx.fillStyle = "#55aa44";
+            let startX = car.x - 200;
+            ctx.moveTo(startX, canvas.height);
+            for (let x = startX; x < car.x + canvas.width + 100; x += 5) {
+                ctx.lineTo(x, getTerrainHeight(x));
+            }
+            ctx.lineTo(car.x + canvas.width + 100, canvas.height);
+            ctx.fill();
+
+            // Dibujar Gasolineras Fake de vez en cuando para sobrevivir
+            let fuelStationX = Math.floor(car.x / 1200 + 1) * 1200;
+            ctx.fillStyle = "red";
+            ctx.fillRect(fuelStationX, getTerrainHeight(fuelStationX) - 40, 20, 40);
+            if(Math.abs(car.x - fuelStationX) < 30 && Math.abs(car.y - getTerrainHeight(fuelStationX)) < 50) {
+                car.fuel = 100; // Recargar al pasar cerca
+            }
+
+            // DIBUJAR COCHE (Chasis)
+            ctx.save();
+            ctx.translate(car.x, car.y);
+            ctx.rotate(car.angle);
+            
+            ctx.fillStyle = "red";
+            ctx.fillRect(-25, -15, 50, 15); // Cuerpo principal
+            ctx.fillStyle = "cyan";
+            ctx.fillRect(0, -25, 20, 10);   // Parabrisas
+
+            // Ruedas
+            ctx.fillStyle = "#111";
+            ctx.beginPath(); ctx.arc(-15, 5, 10, 0, Math.PI * 2); ctx.fill(); // Trasera
+            ctx.beginPath(); ctx.arc(15, 5, 10, 0, Math.PI * 2); ctx.fill();  // Delantera
+            
+            ctx.restore();
+            ctx.restore();
+        }
+    </script>
+</body>
+</html>
